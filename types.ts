@@ -26,3 +26,10 @@ export interface CityData {
   sales: number;
   status: StepStatus;
 }
+
+export interface WorkflowResult {
+  amount: number;
+  currency: string;
+  timestamp: string;
+  cities: string[];
+}

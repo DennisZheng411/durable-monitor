@@ -1,0 +1,5 @@
+{
+  "name": "Azure Durable Functions Visualizer",
+  "description": "An interactive architectural demonstration of the Starters, Orchestrators, and Activities pattern in Azure Durable Functions, featuring real-time execution simulation and code structure visualization.",
+  "requestFramePermissions": []
+}

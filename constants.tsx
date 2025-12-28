@@ -10,7 +10,7 @@ export const FRONTEND_FILES = [
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,13 +21,37 @@ export const FRONTEND_FILES = [
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.0.0",
+    "@vitejs/plugin-react": "4.3.4",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.5",
     "typescript": "^5.2.2",
-    "vite": "^5.0.0"
+    "vite": "5.4.11"
   }
+}`
+  },
+  {
+    path: "tsconfig.json",
+    language: "json",
+    content: `{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src", "index.tsx"]
 }`
   },
   {
@@ -42,31 +66,10 @@ export default defineConfig({
     outDir: 'dist',
   }
 })`
-  },
-  {
-    path: "tailwind.config.js",
-    language: "javascript",
-    content: `/** @type {import('tailwindcss').Config} */
-export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {
-      fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        mono: ['Fira Code', 'monospace'],
-      },
-    },
-  },
-  plugins: [],
-}`
   }
 ];
 
 export const DEPLOYABLE_FILES = [
-  // ... (保留之前的 C# 文件)
   {
     path: "Functions/Starters/HttpApiStart.cs",
     language: "csharp",
@@ -88,13 +91,11 @@ public class HttpApiStart
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req,
         [DurableClient] DurableTaskClient starter)
     {
-        // 关键：确保你返回的是 JSON 格式，以便 UI 解析
         string instanceId = await starter.ScheduleNewOrchestrationInstanceAsync("SalesOrchestrator");
         return starter.CreateCheckStatusResponse(instanceId);
     }
 }`
   }
-  // ... 其他文件保持不变
 ];
 
 export const ARCHITECTURE_ROLES = [

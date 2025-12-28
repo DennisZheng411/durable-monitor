@@ -11,7 +11,7 @@ import {
   CheckCircle2,
   Code2,
   Copy,
-  Terminal,
+  Terminal as TerminalIcon,
   Monitor,
   Wifi,
   Activity,
@@ -29,12 +29,26 @@ import {
   Lock,
   ArrowRight,
   FileText,
-  AlertCircle
+  AlertCircle,
+  FolderOpen,
+  FolderTree,
+  Command,
+  MapPin,
+  MousePointer2,
+  LifeBuoy,
+  ListChecks,
+  Rocket,
+  CheckCircle,
+  Key,
+  Link2,
+  ThumbsUp,
+  Sparkles,
+  SearchCode
 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'simulation' | 'code' | 'azure-deploy' | 'test'>('simulation');
+  const [activeTab, setActiveTab] = useState<'simulation' | 'code' | 'azure-deploy'>('simulation');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [reportResult, setReportResult] = useState<string | null>(null);
@@ -180,8 +194,8 @@ const App: React.FC = () => {
                        <div className="p-6 bg-purple-50 rounded-2xl border border-purple-100 space-y-4">
                           <h3 className="text-xs font-black text-purple-800 flex items-center gap-2"><Info size={14}/> 准备工作</h3>
                           <ul className="text-[11px] text-purple-700/80 font-bold space-y-2">
-                             <li className="flex items-start gap-2"><ChevronRight size={12} className="mt-0.5 shrink-0"/> 部署前端到 Azure 后，需在 Function App 启用 <b>CORS</b></li>
                              <li className="flex items-start gap-2"><ChevronRight size={12} className="mt-0.5 shrink-0"/> 粘贴 <b>HttpStart</b> URL (包含 <code>code=...</code>)</li>
+                             <li className="flex items-start gap-2"><ChevronRight size={12} className="mt-0.5 shrink-0"/> 确保已在 Function App 的 <b>CORS</b> 中添加此网站域名</li>
                           </ul>
                        </div>
                        <input 
@@ -252,81 +266,45 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'azure-deploy' && (
-           <div className="space-y-16 animate-in fade-in slide-in-from-bottom-8">
-              <div className="text-center max-w-3xl mx-auto space-y-6">
-                 <div className="bg-emerald-100 text-emerald-600 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg shadow-emerald-100">
-                    <Globe size={32} />
+           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 pb-20">
+              
+              <div className="bg-slate-900 border-2 border-slate-700 p-10 rounded-[3rem] shadow-2xl text-white space-y-8">
+                 <div className="flex items-center gap-4">
+                    <div className="bg-blue-600 text-white p-3 rounded-2xl animate-pulse"><SearchCode /></div>
+                    <h3 className="text-2xl font-black italic">部署排障指南</h3>
                  </div>
-                 <h2 className="text-5xl font-black tracking-tight italic">部署前端到 Azure SWA</h2>
-                 <p className="text-slate-500 text-lg font-medium leading-relaxed">
-                    Azure Static Web Apps 是托管此监控页的最快方案。
-                 </p>
-              </div>
-
-              {/* 针对用户错误的特殊修复指南 */}
-              <div className="bg-amber-50 border-2 border-amber-200 rounded-[3rem] p-10 flex flex-col md:flex-row gap-8 items-start shadow-xl shadow-amber-100/50">
-                 <div className="bg-amber-500 text-white p-4 rounded-2xl shadow-lg shrink-0">
-                    <AlertCircle size={32} />
-                 </div>
-                 <div className="space-y-4">
-                    <h3 className="text-xl font-black text-amber-900">遇到了 "src refspec main does not match any" 错误？</h3>
-                    <p className="text-amber-800/80 text-sm font-bold leading-relaxed">
-                       这是因为你的本地默认分支名叫 <code>master</code>，但现代 GitHub 习惯叫 <code>main</code>。
-                       请依次执行以下命令来修复它：
-                    </p>
-                    <div className="bg-slate-900 p-6 rounded-2xl text-slate-300 font-mono text-xs space-y-2 relative">
-                       <div className="text-amber-400"># 1. 确保你已经 commit 了代码 (如果没有 commit，push 会报错)</div>
-                       <div className="text-emerald-400">git add . && git commit -m "Initial commit"</div>
-                       <div className="text-amber-400"># 2. 将本地分支重命名为 main</div>
-                       <div className="text-emerald-400">git branch -M main</div>
-                       <div className="text-amber-400"># 3. 再次尝试推送</div>
-                       <div className="text-emerald-400">git push -u origin main</div>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="grid gap-10">
-                 {/* Step 1 */}
-                 <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col md:flex-row gap-10">
-                    <div className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shrink-0 shadow-xl">1</div>
-                    <div className="space-y-6 flex-1">
-                       <h3 className="text-2xl font-black">准备本地代码</h3>
-                       <div className="bg-slate-950 p-6 rounded-2xl text-slate-300 font-mono text-xs space-y-2">
-                          <div className="text-emerald-400">mkdir durable-monitor && cd durable-monitor</div>
-                          <div className="text-emerald-400">git init</div>
-                          <div className="text-slate-500 italic"># 将源码页面的文件全部存入此文件夹</div>
-                          <div className="text-emerald-400">git add .</div>
-                          <div className="text-emerald-400">git commit -m "setup project"</div>
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* Step 2 */}
-                 <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col md:flex-row gap-10">
-                    <div className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shrink-0 shadow-xl">2</div>
-                    <div className="space-y-6 flex-1">
-                       <h3 className="text-2xl font-black">连接 GitHub</h3>
-                       <div className="bg-slate-950 p-6 rounded-2xl text-slate-300 font-mono text-xs space-y-2">
-                          <div className="text-emerald-400">git branch -M main</div>
-                          <div className="text-emerald-400">git remote add origin https://github.com/YOUR_USER/repo-name.git</div>
-                          <div className="text-emerald-400">git push -u origin main</div>
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* CORS Step */}
-                 <div className="bg-blue-600 p-12 rounded-[4rem] text-white shadow-2xl flex flex-col md:flex-row gap-10 items-center overflow-hidden relative">
-                    <div className="absolute -right-20 -bottom-20 opacity-10 scale-150 rotate-12"><Lock size={200} /></div>
-                    <div className="flex-1 space-y-6 relative z-10">
-                       <h3 className="text-3xl font-black">别忘了 CORS 配置！</h3>
-                       <p className="text-blue-100 font-medium leading-relaxed">
-                          你的 SWA 部署完成后，必须在 Function App 中授权该域名访问。
+                 <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                       <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest">第一步：看日志</h4>
+                       <p className="text-slate-400 text-sm leading-relaxed">
+                          点击你截图中的 <b>"Build and Deploy Job"</b> 蓝色文字。它会展开黑色的控制台。往下拉，找红色的文字。
                        </p>
-                       <ul className="space-y-2 text-sm font-bold list-disc pl-5 opacity-90">
-                          <li>进入 Function App -> 左侧菜单 CORS</li>
+                    </div>
+                    <div className="space-y-4">
+                       <h4 className="text-xs font-black text-emerald-400 uppercase tracking-widest">第二步：修复 CORS 报错</h4>
+                       <p className="text-slate-400 text-sm leading-relaxed">
+                          如果部署成功但连接失败，请确保：
+                       </p>
+                       <ul className="space-y-2 text-xs font-bold list-disc pl-5 opacity-90 text-slate-300">
+                          <li>进入 Function App &rarr; 左侧菜单 CORS</li>
                           <li>添加你的 SWA URL (例如 https://white-sea-xxxx.azurestaticapps.net)</li>
                           <li>勾选 Enable Access-Control-Allow-Credentials</li>
                        </ul>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="bg-white p-12 rounded-[4rem] border border-slate-200 shadow-sm space-y-8 relative overflow-hidden text-slate-900">
+                 <div className="relative z-10 space-y-6">
+                    <div className="flex items-center gap-3">
+                       <div className="bg-slate-900 p-2 rounded-xl text-white"><Lock size={18}/></div>
+                       <h3 className="text-2xl font-black italic text-slate-900">联通后端 (最后一步)</h3>
+                    </div>
+                    <p className="text-slate-500 font-medium max-w-2xl leading-relaxed">
+                       如果 GitHub 终于变绿了，恭喜你！最后只需要去 Azure Portal 的 Function App 里配置 <b>CORS</b>。
+                    </p>
+                    <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px] text-blue-600">
+                       https://[你的-swa-域名].azurestaticapps.net
                     </div>
                  </div>
               </div>

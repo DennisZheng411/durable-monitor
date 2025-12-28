@@ -1,149 +1,76 @@
 
+export const INTEGRATION_GUIDE = [
+  {
+    step: "1. 触发请求",
+    desc: "使用相对路径 /api 调用后端。SWA 代理会自动处理物理路由。",
+    code: `const startResponse = await fetch('/api/HttpStart', { 
+  method: 'POST'
+});
+const statusUrls = await startResponse.json(); 
+// 返回值包含 statusQueryGetUri 等监控地址`
+  },
+  {
+    step: "2. 异步轮询",
+    desc: "由于 Durable Function 是异步的，前端需不断查询进度直到完成。",
+    code: `async function poll(url) {
+  const res = await fetch(url);
+  const data = await res.json();
+  
+  if (data.runtimeStatus === 'Completed') {
+    renderResult(data.output); // 最终结果显示
+  }
+}`
+  }
+];
+
 export const FRONTEND_FILES = [
   {
-    path: "package.json",
-    language: "json",
-    content: `{
-  "name": "durable-visualizer",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "lucide-react": "^0.300.0"
-  },
-  "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "4.3.4",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.31",
-    "tailwindcss": "^3.3.5",
-    "typescript": "^5.2.2",
-    "vite": "5.4.11"
+    path: "SwaIntegration.js",
+    language: "javascript",
+    content: `/**
+ * 【重要】在 SWA 链接完成后，代码中不要写完整的 https://... 域名
+ * 直接使用相对路径 /api/... 即可实现安全通信
+ */
+async function startDurableProcess() {
+  try {
+    // 1. 发起流程（对应 C# 中的 HttpStart 函数）
+    const response = await fetch('/api/HttpStart', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) throw new Error("无法启动实例");
+    
+    const clientUrls = await response.json();
+    const statusUrl = clientUrls.statusQueryGetUri;
+    
+    console.log("实例 ID:", clientUrls.id);
+
+    // 2. 轮询状态（建议每 2-5 秒一次）
+    const interval = setInterval(async () => {
+      const statusRes = await fetch(statusUrl);
+      const statusInfo = await statusRes.json();
+
+      console.log("当前状态:", statusInfo.runtimeStatus);
+
+      if (statusInfo.runtimeStatus === 'Completed') {
+        clearInterval(interval);
+        // 在这里调用您的 UI 更新函数来显示最后结果
+        displayFinalResult(statusInfo.output); 
+      } else if (statusInfo.runtimeStatus === 'Failed' || statusInfo.runtimeStatus === 'Terminated') {
+        clearInterval(interval);
+        alert("流程执行失败");
+      }
+    }, 2000);
+
+  } catch (error) {
+    console.error("集成错误:", error);
   }
-}`
-  },
-  {
-    path: "tsconfig.json",
-    language: "json",
-    content: `{
-  "compilerOptions": {
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": false,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx"
-  },
-  "include": ["src", "index.tsx"]
-}`
-  },
-  {
-    path: "vite.config.ts",
-    language: "typescript",
-    content: `import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+}
 
-export default defineConfig({
-  plugins: [react()],
-  build: {
-    outDir: 'dist',
-  }
-})`
-  }
-];
-
-export const DEPLOYABLE_FILES = [
-  {
-    path: "Functions/Starters/HttpApiStart.cs",
-    language: "csharp",
-    content: `using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.Functions.Worker;
-using Microsoft.DurableTask.Client;
-using Microsoft.Extensions.Logging;
-
-namespace MyDurableDemo.Functions.Starters;
-
-public class HttpApiStart
-{
-    private readonly ILogger<HttpApiStart> _logger;
-    public HttpApiStart(ILogger<HttpApiStart> logger) => _logger = logger;
-
-    [Function("HttpStart")]
-    public async Task<IActionResult> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req,
-        [DurableClient] DurableTaskClient starter)
-    {
-        string instanceId = await starter.ScheduleNewOrchestrationInstanceAsync("SalesOrchestrator");
-        return starter.CreateCheckStatusResponse(instanceId);
-    }
+function displayFinalResult(data) {
+  // 假设您的结果显示面板有个 ID 叫 result-view
+  document.getElementById('result-view').innerText = JSON.stringify(data, null, 2);
 }`
   }
 ];
-
-export const ARCHITECTURE_ROLES = [
-  {
-    title: "Starters (触发器)",
-    description: "HTTP 入口，负责启动编排实例。返回 202 状态码。",
-    color: "bg-blue-600",
-    icon: "⚡"
-  },
-  {
-    title: "Orchestrators (编排器)",
-    description: "指挥中心。负责定义工作流、并行处理（Fan-out/Fan-in）。",
-    color: "bg-purple-600",
-    icon: "🗺️"
-  },
-  {
-    title: "Activities (活动)",
-    description: "具体的执行单元。负责 I/O 操作、计算或通知。",
-    color: "bg-emerald-600",
-    icon: "🛠️"
-  }
-];
-
-export const CODE_SNIPPETS = {
-  FOLDER: `MyFunctionApp/
-│
-├── Models/
-│   └── CitySalesData.cs
-│
-├── Functions/
-│   ├── Starters/
-│   ├── Orchestrators/
-│   └── Activities/
-│
-├── Program.cs
-├── host.json
-└── MyFunctionApp.csproj`,
-  ORCHESTRATOR: `[Function("SalesOrchestrator")]
-public async Task<string> Run([OrchestrationTrigger] TaskOrchestrationContext context)
-{
-    var cities = await context.CallActivityAsync<string[]>("Activity_GetCities");
-    var tasks = cities.Select(c => context.CallActivityAsync<int>("Activity_Calculate", c));
-    return await context.CallActivityAsync<string>("Activity_Report", (await Task.WhenAll(tasks)).Sum());
-}`,
-  ACTIVITIES: `[Function("Activity_Calculate")]
-public async Task<int> Calculate([ActivityTrigger] string city)
-{
-    await Task.Delay(1000);
-    return new Random().Next(100, 500);
-}`
-};

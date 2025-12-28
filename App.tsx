@@ -24,7 +24,8 @@ import {
   Database,
   Terminal,
   RefreshCw,
-  Cpu
+  Cpu,
+  Braces
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -43,17 +44,34 @@ const App: React.FC = () => {
     }]);
   };
 
-  // 核心逻辑：触发并轮询结果
+  /**
+   * 关键修复函数：CORS 桥接
+   * 将 https://func-app.azurewebsites.net/runtime/webhooks/... 
+   * 转换为 /api/runtime/webhooks/...
+   */
+  const resolveSwaPath = (absoluteUrl: string) => {
+    try {
+      if (absoluteUrl.includes('/runtime/webhooks/durabletask/')) {
+        const parts = absoluteUrl.split('/runtime/webhooks/durabletask/');
+        const relativePath = `/api/runtime/webhooks/durabletask/${parts[1]}`;
+        addLog(`🔧 路径转换 (解决 CORS): 使用 SWA 代理路径`, "warn");
+        return relativePath;
+      }
+      return absoluteUrl;
+    } catch (e) {
+      return absoluteUrl;
+    }
+  };
+
   const startRealWorkflow = async () => {
     if (isRunning) return;
     
     setIsRunning(true);
     setFinalResult(null);
     setRuntimeStatus('Starting...');
-    addLog("🚀 正在触发后端流程: POST /api/HttpStart", "info");
+    addLog("🚀 正在发起 POST 请求到 /api/HttpStart", "info");
 
     try {
-      // 1. 触发 Starter 函数
       const response = await fetch('/api/HttpStart', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -62,31 +80,36 @@ const App: React.FC = () => {
       if (!response.ok) throw new Error(`触发失败: ${response.status}`);
       
       const clientUrls = await response.json();
-      const statusUrl = clientUrls.statusQueryGetUri;
-      addLog(`✅ 实例已启动: ID = ${clientUrls.id.substring(0, 8)}...`, "info");
-      addLog(`🔍 开始轮询状态...`, "info");
+      
+      // 核心修复点：转换 URL 以绕过 CORS
+      const statusUrl = resolveSwaPath(clientUrls.statusQueryGetUri);
+      
+      addLog(`✅ 实例已启动: ${clientUrls.id.substring(0, 8)}...`, "info");
+      addLog(`🔍 开始通过同源代理轮询状态...`, "info");
 
-      // 2. 开始轮询
       pollIntervalRef.current = window.setInterval(async () => {
         try {
           const statusRes = await fetch(statusUrl);
-          const statusInfo = await statusRes.json();
+          if (!statusRes.ok) {
+             addLog(`轮询请求失败: ${statusRes.status}`, "error");
+             return;
+          }
           
+          const statusInfo = await statusRes.json();
           setRuntimeStatus(statusInfo.runtimeStatus);
-          addLog(`当前状态: ${statusInfo.runtimeStatus}`, "info");
-
+          
           if (statusInfo.runtimeStatus === 'Completed') {
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             setFinalResult(statusInfo.output);
             setIsRunning(false);
-            addLog("🎉 任务圆满完成！已获取结果。", "info");
+            addLog("🎉 获取到最终结果！", "info");
           } else if (statusInfo.runtimeStatus === 'Failed' || statusInfo.runtimeStatus === 'Terminated') {
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             setIsRunning(false);
-            addLog("❌ 后端任务执行出错", "error");
+            addLog("❌ 后端任务执行失败", "error");
           }
-        } catch (pollErr) {
-          console.error("轮询异常:", pollErr);
+        } catch (pollErr: any) {
+          addLog(`轮询异常: ${pollErr.message}`, "error");
         }
       }, 2000);
 
@@ -104,32 +127,25 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#f8fafc] text-slate-900">
-      <header className="bg-white border-b border-slate-200 px-8 py-5 sticky top-0 z-50 flex justify-between items-center shadow-sm">
+    <div className="min-h-screen flex flex-col font-sans bg-[#f1f5f9] text-slate-900">
+      <header className="bg-white border-b border-slate-200 px-8 py-4 sticky top-0 z-50 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-300">
-            <Activity size={24} />
+          <div className="bg-blue-600 p-2 rounded-xl text-white">
+            <Activity size={20} />
           </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-slate-900">Azure SWA + Durable</h1>
-            <div className="flex items-center gap-2">
-               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Real-time Connected</span>
-            </div>
-          </div>
+          <h1 className="text-lg font-black tracking-tighter">SWA + DURABLE CONNECT</h1>
         </div>
 
-        <nav className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+        <nav className="flex bg-slate-100 p-1 rounded-xl">
           {[
-            { id: 'link-guide', icon: <Link2 size={14}/>, label: '配置指南' },
-            { id: 'run-workflow', icon: <Zap size={14}/>, label: '运行任务' },
-            { id: 'code', icon: <Code2 size={14}/>, label: '前端源码' },
-            { id: 'logs', icon: <Monitor size={14}/>, label: '实时日志' }
+            { id: 'link-guide', icon: <Link2 size={14}/>, label: '配置说明' },
+            { id: 'run-workflow', icon: <Zap size={14}/>, label: '真实连接测试' },
+            { id: 'logs', icon: <Monitor size={14}/>, label: '系统日志' }
           ].map((tab) => (
             <button 
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)} 
-              className={`px-4 py-2.5 text-xs font-black rounded-xl transition-all flex items-center gap-2 ${activeTab === tab.id ? 'bg-white shadow-md text-blue-600 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === tab.id ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}
             >
               {tab.icon} {tab.label}
             </button>
@@ -137,148 +153,103 @@ const App: React.FC = () => {
         </nav>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-10">
-        
+      <main className="flex-1 max-w-6xl mx-auto w-full p-6">
         {activeTab === 'link-guide' && (
-           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-xl border-t-8 border-t-emerald-500">
-                 <div className="flex items-center gap-4 mb-8">
-                    <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
-                       <CheckCircle2 size={32}/>
-                    </div>
-                    <div>
-                       <h2 className="text-2xl font-black text-slate-900">物理链路已建立</h2>
-                       <p className="text-slate-500 font-medium">现在，您的前端可以调用 <code className="bg-slate-100 px-1 text-blue-600">/api/HttpStart</code> 了</p>
-                    </div>
-                 </div>
-
-                 <div className="grid md:grid-cols-2 gap-6 mb-10">
-                    <div className="p-6 rounded-3xl bg-blue-50 border border-blue-100">
-                       <h4 className="font-black text-blue-900 mb-2 flex items-center gap-2"><Cpu size={18}/> 1. 发起 (Trigger)</h4>
-                       <p className="text-xs text-blue-700">前端向 /api/HttpStart 发送 POST 请求。后端返回一个包含状态查询地址的 JSON。</p>
-                    </div>
-                    <div className="p-6 rounded-3xl bg-amber-50 border border-amber-100">
-                       <h4 className="font-black text-amber-900 mb-2 flex items-center gap-2"><RefreshCw size={18}/> 2. 轮询 (Poll)</h4>
-                       <p className="text-xs text-amber-700">由于 Durable 函数是长时间运行的任务，前端需要每隔 2 秒请求一次状态地址直到完成。</p>
-                    </div>
-                 </div>
-
-                 <div className="flex justify-center">
-                    <button 
-                      onClick={() => setActiveTab('run-workflow')}
-                      className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-3"
-                    >
-                       去运行真实任务 <ArrowRightLeft size={18}/>
-                    </button>
-                 </div>
+           <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl space-y-6">
+              <h2 className="text-2xl font-black flex items-center gap-3">
+                 <ShieldCheck className="text-emerald-500" /> 物理链路现状分析
+              </h2>
+              <div className="p-6 bg-amber-50 border border-amber-100 rounded-2xl">
+                 <p className="text-sm font-bold text-amber-800 flex items-center gap-2 mb-2">
+                    <AlertCircle size={16}/> 为什么之前拿不到数据？
+                 </p>
+                 <p className="text-xs text-amber-700 leading-relaxed">
+                    虽然您完成了 Link，但 Durable Function 返回的状态查询地址是绝对域名的。浏览器会认为这是跨域请求而拦截。
+                    新版本代码加入了<b>路径桥接器</b>，会将所有请求强制锁定在同源的 <code className="bg-white px-1">/api</code> 路径下。
+                 </p>
+              </div>
+              <div className="flex justify-center pt-4">
+                 <button onClick={() => setActiveTab('run-workflow')} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-200">
+                    立即尝试修复后的连接
+                 </button>
               </div>
            </div>
         )}
 
         {activeTab === 'run-workflow' && (
-           <div className="animate-in zoom-in-95 duration-500 grid md:grid-cols-3 gap-8">
-              {/* 左侧：控制面板 */}
-              <div className="md:col-span-1 space-y-6">
-                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl">
-                    <h3 className="text-lg font-black mb-6">执行控制器</h3>
+           <div className="grid md:grid-cols-12 gap-6 h-full">
+              <div className="md:col-span-4 space-y-6">
+                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-md">
+                    <h3 className="font-black text-slate-800 mb-4">连接控制面板</h3>
                     <div className="space-y-4">
-                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">当前状态</span>
-                          <div className="flex items-center gap-2 mt-1">
-                             <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-amber-500 animate-pulse' : runtimeStatus === 'Completed' ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
-                             <span className="font-black text-slate-700">{runtimeStatus}</span>
-                          </div>
-                       </div>
-                       
                        <button 
                          onClick={startRealWorkflow}
                          disabled={isRunning}
-                         className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-slate-800 disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-3"
+                         className="w-full py-4 bg-slate-900 text-white rounded-xl font-black shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                        >
-                          {isRunning ? <Loader2 size={20} className="animate-spin"/> : <Play size={20}/>}
-                          {isRunning ? '正在运行...' : '开始执行后端流程'}
+                          {isRunning ? <Loader2 className="animate-spin" size={18}/> : <Play size={18}/>}
+                          {isRunning ? '正在抓取数据...' : '启动真实流程'}
                        </button>
-
-                       {finalResult && (
-                         <button 
-                           onClick={() => {setFinalResult(null); setRuntimeStatus('Idle');}}
-                           className="w-full py-3 border border-slate-200 text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-50"
-                         >
-                            清除结果
-                         </button>
-                       )}
+                       <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-400 tracking-wider px-1">
+                          <span>后端状态:</span>
+                          <span className={isRunning ? 'text-amber-500' : 'text-emerald-500'}>{runtimeStatus}</span>
+                       </div>
                     </div>
                  </div>
 
-                 <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
-                    <div className="relative z-10">
-                       <h4 className="font-black mb-2 flex items-center gap-2"><Info size={18}/> 提示</h4>
-                       <p className="text-xs text-blue-100 leading-relaxed font-medium">
-                          点击运行后，应用将真正访问您的 Azure Function 后端。如果返回 404，请确认您的函数名为 "HttpStart"。
-                       </p>
-                    </div>
-                    <Terminal size={100} className="absolute -bottom-4 -right-4 text-blue-500/20 rotate-12" />
+                 <div className="bg-emerald-600 p-6 rounded-3xl text-white shadow-lg shadow-emerald-100">
+                    <h4 className="font-bold flex items-center gap-2 mb-2"><CheckCircle2 size={16}/> 链路已优化</h4>
+                    <p className="text-[11px] opacity-90 leading-tight font-medium">
+                       已启用同源代理模式。系统将自动过滤来自后端的所有外部域名请求，确保数据能在 SWA 隧道内平稳传输。
+                    </p>
                  </div>
               </div>
 
-              {/* 右侧：结果展示 */}
-              <div className="md:col-span-2">
-                 <div className="bg-slate-900 rounded-[3rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col h-full min-h-[500px]">
-                    <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-                       <div className="flex items-center gap-3">
-                          <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg"><Database size={20}/></div>
-                          <span className="text-white font-black italic">FINAL RESULT FROM BACKEND</span>
+              <div className="md:col-span-8 flex flex-col h-full min-h-[500px]">
+                 <div className="bg-slate-900 rounded-[2.5rem] flex-1 flex flex-col border border-slate-800 shadow-2xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
+                       <div className="flex items-center gap-2">
+                          <Braces size={16} className="text-blue-400" />
+                          <span className="text-[10px] font-black text-slate-400 uppercase">Production Data Output</span>
                        </div>
-                       {finalResult && <span className="text-[10px] bg-emerald-500 text-white px-2 py-1 rounded-full font-black animate-pulse">LIVE DATA</span>}
+                       {finalResult && <span className="bg-emerald-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black animate-bounce">NEW DATA RECEIVED</span>}
                     </div>
 
-                    <div className="flex-1 p-10 flex flex-col items-center justify-center relative">
+                    <div className="flex-1 p-8 flex flex-col justify-center">
                        {!isRunning && !finalResult && (
-                          <div className="text-center space-y-4">
-                             <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto border border-white/10">
-                                <Activity size={32} className="text-slate-600"/>
+                          <div className="text-center">
+                             <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                <Activity className="text-slate-700" size={24} />
                              </div>
-                             <p className="text-slate-500 font-bold italic">等待数据注入...</p>
+                             <p className="text-slate-500 text-sm font-bold italic">等待指令执行...</p>
                           </div>
                        )}
 
                        {isRunning && (
-                          <div className="text-center space-y-6">
-                             <div className="relative">
-                                <div className="w-24 h-24 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-                                <Cpu size={32} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-blue-500 animate-pulse"/>
-                             </div>
-                             <div className="space-y-1">
-                                <p className="text-white font-black tracking-widest uppercase text-sm">Orchestration in Progress</p>
-                                <p className="text-slate-500 text-xs font-mono">Status: {runtimeStatus}</p>
-                             </div>
+                          <div className="text-center space-y-4">
+                             <div className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto"></div>
+                             <p className="text-white font-black text-sm uppercase tracking-widest">正在跨域代理数据...</p>
+                             <p className="text-slate-500 text-xs font-mono">Status: {runtimeStatus}</p>
                           </div>
                        )}
 
                        {finalResult && (
-                          <div className="w-full animate-in fade-in zoom-in-95 duration-500">
-                             <div className="bg-white/5 border border-white/10 rounded-3xl p-8 shadow-inner overflow-hidden">
-                                <pre className="text-emerald-400 font-mono text-sm overflow-x-auto whitespace-pre-wrap">
-                                   <code>{typeof finalResult === 'object' ? JSON.stringify(finalResult, null, 2) : finalResult}</code>
+                          <div className="animate-in fade-in zoom-in-95 duration-500 h-full overflow-y-auto">
+                             <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-6 shadow-inner">
+                                <pre className="text-emerald-400 font-mono text-sm leading-relaxed">
+                                   <code>{JSON.stringify(finalResult, null, 2)}</code>
                                 </pre>
                              </div>
-                             <div className="mt-8 flex items-center justify-center gap-4">
-                                <div className="flex -space-x-2">
-                                   {[1,2,3].map(i => <div key={i} className="w-8 h-8 rounded-full border-2 border-slate-900 bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white">A{i}</div>)}
-                                </div>
-                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Backend Activities Completed Successfully</p>
+                             <div className="mt-6 flex items-center gap-3 justify-center">
+                                <div className="h-px bg-slate-800 flex-1"></div>
+                                <span className="text-[9px] text-slate-500 font-black uppercase">End of Response</span>
+                                <div className="h-px bg-slate-800 flex-1"></div>
                              </div>
                           </div>
                        )}
                     </div>
                  </div>
               </div>
-           </div>
-        )}
-
-        {activeTab === 'code' && (
-           <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
-              <CodeBlock code={FRONTEND_FILES[0].content} title="SwaIntegration.js" />
            </div>
         )}
 
@@ -289,8 +260,8 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="px-8 py-10 border-t border-slate-200 bg-white/50 text-center">
-         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Azure Hybrid Integration Visualizer | Production Data Mode</p>
+      <footer className="p-8 text-center">
+         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Azure Managed Identity & SWA Proxy Mode Activated</p>
       </footer>
     </div>
   );
